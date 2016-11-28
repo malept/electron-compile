@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import packager from 'electron-packager';
+import {parseCLIArgs} from 'electron-packager/common';
 import path from 'path';
 import rimraf from 'rimraf';
 
@@ -9,7 +11,6 @@ import {main} from './cli';
 import {spawnPromise, findActualExecutable} from 'spawn-rx';
 
 const d = require('debug-electron')('electron-compile:packager');
-const electronPackager = 'electron-packager';
 
 export async function packageDirToResourcesDir(packageDir) {
   let appDir = (await pfs.readdir(packageDir)).find((x) => x.match(/\.app$/i));
@@ -28,24 +29,19 @@ async function copySmallFile(from, to) {
 }
 
 export function splitOutAsarArguments(argv) {
-  if (argv.find((x) => x.match(/^--asar-unpack$/))) {
-    throw new Error("electron-compile doesn't support --asar-unpack at the moment, use asar-unpack-dir");
+  if (argv.asar && argv.asar.unpack) {
+    throw new Error("electron-compile doesn't support --asar.unpack at the moment, use --asar.unpackDir");
   }
 
-  // Strip --asar altogether
-  let ret = argv.filter((x) => !x.match(/^--asar/));
+  let asarArgs = null;
 
-  if (ret.length === argv.length) { return { packagerArgs: ret, asarArgs: null }; }
-
-  let indexOfUnpack = ret.findIndex((x) => x.match(/^--asar-unpack-dir$/));
-  if (indexOfUnpack < 0) {
-    return { packagerArgs: ret, asarArgs: [] };
+  // Strip asar altogether
+  if (argv.asar) {
+    asarArgs = argv.asar;
+    delete argv.asar;
   }
 
-  let unpackArgs = ret.slice(indexOfUnpack, indexOfUnpack+1);
-  let notUnpackArgs = ret.slice(0, indexOfUnpack).concat(ret.slice(indexOfUnpack+2));
-
-  return { packagerArgs: notUnpackArgs, asarArgs: unpackArgs };
+  return { packagerArgs: argv, asarArgs: asarArgs };
 }
 
 export function parsePackagerOutput(output) {
@@ -113,42 +109,35 @@ export async function runAsarArchive(packageDir, asarUnpackDir) {
   rimraf.sync(path.join(appDir));
 }
 
-export function findExecutableOrGuess(cmdToFind, argsToUse) {
-  let { cmd, args } = findActualExecutable(cmdToFind, argsToUse);
-  if (cmd === electronPackager) {
-    d(`Can't find ${cmdToFind}, falling back to where it should be as a guess!`);
-    let cmdSuffix = process.platform === 'win32' ? '.cmd' : '';
-    return findActualExecutable(path.resolve(__dirname, '..', '..', '.bin', `${cmdToFind}${cmdSuffix}`), argsToUse);
-  }
-
-  return { cmd, args };
-}
-
 export async function packagerMain(argv) {
   d(`argv: ${JSON.stringify(argv)}`);
-  argv = argv.splice(2);
+  argv = parseCLIArgs(argv.splice(2));
 
   let { packagerArgs, asarArgs } = splitOutAsarArguments(argv);
-  let { cmd, args } = findExecutableOrGuess(electronPackager, packagerArgs);
 
-  d(`Spawning electron-packager: ${JSON.stringify(args)}`);
-  let packagerOutput = await spawnPromise(cmd, args);
-  let packageDirs = parsePackagerOutput(packagerOutput);
+  d(`Spawning electron-packager: ${JSON.stringify(packagerArgs)}`);
+  packager(packagerArgs, (err, paths) => {
+    console.error(err);
+    console.error(paths);
+  });
 
-  d(`Starting compilation for ${JSON.stringify(packageDirs)}`);
-  for (let packageDir of packageDirs) {
-    await compileAndShim(packageDir);
+  // let packagerOutput = await spawnPromise(cmd, args);
+  // let packageDirs = parsePackagerOutput(packagerOutput);
 
-    if (!asarArgs) continue;
+  // d(`Starting compilation for ${JSON.stringify(packageDirs)}`);
+  // for (let packageDir of packageDirs) {
+  //   await compileAndShim(packageDir);
 
-    d('Starting ASAR packaging');
-    let asarUnpackDir = null;
-    if (asarArgs.length === 2) {
-      asarUnpackDir = asarArgs[1];
-    }
+  //   if (!asarArgs) continue;
 
-    await runAsarArchive(packageDir, asarUnpackDir);
-  }
+  //   d('Starting ASAR packaging');
+  //   let asarUnpackDir = null;
+  //   if (asarArgs.length === 2) {
+  //     asarUnpackDir = asarArgs[1];
+  //   }
+
+  //   await runAsarArchive(packageDir, asarUnpackDir);
+  // }
 }
 
 if (process.mainModule === module) {
