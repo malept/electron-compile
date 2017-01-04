@@ -27,7 +27,7 @@ For JSON:
 
 ### How does it work? (Easiest Way)
 
-Use `electron-prebuilt-compile` instead of the `electron-prebuilt` module. Tada! You did it.
+Create a new Electron project (or import an existing project) using [Electron Forge](https://github.com/electron-userland/electron-forge). It will install `electron-prebuilt-compile` instead of the `electron-prebuilt` module. Tada! You did it.
 
 ### Wait, seriously?
 
@@ -150,7 +150,7 @@ In this example `.compilerc`, JavaScript files won't be compiled:
 
 ## How can I precompile my code for release-time?
 
-electron-compile comes with a wrapper around the [electron-packager](https://github.com/electron-userland/electron-packager) project, `electron-packager-compile` (if you use the `electron-prebuilt-compile` project, this will just be `electron-packager`). Run it the same way you run `electron-packager` and the compilation wire-up will be done in the background.
+[Electron Forge](https://github.com/electron-userland/electron-forge) does all of this work for you, including making distributable packages for your operating system. All of the compilation wire-up will be done in the background.
 
 ## How can I precompile my code for release-time? (the hard way)
 
